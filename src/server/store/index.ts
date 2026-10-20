@@ -38,7 +38,13 @@ export async function obterConfigPersistente(): Promise<SiteConfig | null> {
     const config = await lerConfigEdge(edgeConfig);
     if (config) return config;
   }
-  return getStore().obterConfig();
+  try {
+    return await getStore().obterConfig();
+  } catch (erro) {
+    // Redis indisponível ou credenciais inválidas — usa defaults, não derruba a página.
+    console.error("[store] falha ao ler config do store principal:", erro);
+    return null;
+  }
 }
 
 /**
