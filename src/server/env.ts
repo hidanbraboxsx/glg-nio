@@ -106,10 +106,13 @@ export function getConfig(): AppConfig {
   const encryptionKey = read("LEAD_ENCRYPTION_KEY") ?? "";
   const webhookSecret = read("TELEGRAM_WEBHOOK_SECRET") ?? "";
 
-  const redisUrl =
+  const rawRedisUrl =
     read("UPSTASH_REDIS_REST_URL") ?? read("KV_REST_API_URL") ?? read("REDIS_REST_URL") ?? "";
-  const redisToken =
+  const rawRedisToken =
     read("UPSTASH_REDIS_REST_TOKEN") ?? read("KV_REST_API_TOKEN") ?? read("REDIS_REST_TOKEN") ?? "";
+
+  const redisUrl = rawRedisUrl.trim().replace(/^["']|["']$/g, "").replace(/\/+$/, "");
+  const redisToken = rawRedisToken.trim().replace(/^["']|["']$/g, "");
 
   // Vercel Edge Config — persiste SiteConfig no plano gratuito da Vercel.
   const edgeConnectionString = read("EDGE_CONFIG") ?? "";
