@@ -803,7 +803,7 @@ async function tratarCallback(cq: CallbackQuery): Promise<void> {
   }
 }
 
-/** Envia o alerta de novo lead, clique para WhatsApp ou encerramento de sessão. */
+/** Envia o alerta de novo lead, clique para WhatsApp ou encerramento de sessão (sem botões). */
 export async function notificarAdministrador(
   lead: Lead,
   tipo: "entrada" | "whatsapp" | "saida" = lead.etapa === "whatsapp" ? "whatsapp" : "entrada",
@@ -813,9 +813,8 @@ export async function notificarAdministrador(
   if (destinatarios.length === 0) return;
 
   const texto = mensagemAlerta(lead, tipo);
-  const teclado = await tecladoLead(lead);
 
   for (const chatId of destinatarios) {
-    await enviarMensagem(chatId, texto, teclado);
+    await enviarMensagem(chatId, texto);
   }
 }
