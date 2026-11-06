@@ -226,38 +226,63 @@ export function mensagemLista(
 /** Ficha da sessão do visitante. */
 export function mensagemLead(lead: Lead, config?: SiteConfig): string {
   const foiParaZap = lead.eventos.some((e) => e.nome === "clique_whatsapp");
+  const etapaLabel = ETAPA_LABEL[lead.etapa] ?? lead.etapa;
+
   const linhas = [
-    `📊 <b>Sessão de Tráfego</b> · <code>#${lead.id.slice(0, 8)}</code>`,
+    `📊 <b>Ficha do Lead</b> · <code>#${lead.id.slice(0, 8)}</code>`,
     "━━━━━━━━━━━━━━━━━━",
-    linha("🟢 Status WhatsApp", foiParaZap ? "✅ Clicou e abriu WhatsApp" : "👀 Apenas visualizou a página"),
+    linha("📌 Etapa", etapaLabel),
+    linha("🟢 WhatsApp", foiParaZap ? "✅ Clicou e abriu o WhatsApp" : "👀 Apenas visualizou a página"),
+  ];
+
+  // Dados de identidade (PII)
+  if (lead.nome) linhas.push(linha("👤 Nome", lead.nome));
+  if (lead.whatsapp) {
+    const numLimpo = lead.whatsapp.replace(/\D+/g, "");
+    linhas.push(
+      `📱 <b>WhatsApp:</b> <a href="https://wa.me/${numLimpo}">${esc(formatBrPhone(lead.whatsapp))}</a>`,
+    );
+  } else {
+    linhas.push("📱 <b>WhatsApp:</b> <i>não informado</i>");
+  }
+  if (lead.email) linhas.push(linha("📧 E-mail", lead.email));
+  if (lead.cpf) linhas.push(`🪪 <b>CPF:</b> <code>${esc(lead.cpf.slice(0, 3))}.***.***-${esc(lead.cpf.slice(-2))}</code>`);
+
+  linhas.push(
+    "",
     linha("🕒 Primeiro Acesso", formatarDataHora(lead.criadoEm)),
-    linha("👣 Páginas/Visitas", String(lead.visitas)),
-    linha("🔗 Origem do Tráfego", origem(lead)),
+    linha("🔄 Última Atividade", formatarDataHora(lead.atualizadoEm)),
+    linha("👣 Visitas", String(lead.visitas)),
+    linha("🔗 Origem", origem(lead)),
     linha("🌐 Página de Entrada", lead.paginaEntrada),
-    linha("📍 Localidade Estimada", localDoLead(lead)),
+    linha("📍 Localidade", localDoLead(lead)),
     linha(
       "💻 Dispositivo",
       [lead.dispositivo, lead.sistema, lead.navegador].filter(Boolean).join(" · ") || undefined,
     ),
-    "",
-    "<b>Histórico da sessão:</b>",
-    ultimosEventos(lead),
-  ];
+  );
+
+  if (lead.qualidade && lead.qualidade !== "confiavel") {
+    linhas.push(linha("⚠️ Qualidade", rotuloQualidade(lead.qualidade)));
+  }
+
+  linhas.push("", "<b>Histórico da sessão:</b>", ultimosEventos(lead));
 
   if (lead.observacoes) {
     linhas.push("", `<b>📝 Observação</b>\n${esc(lead.observacoes)}`);
   }
 
   if (config) {
-    linhas.push("", `☎️ <i>Número no site: ${esc(formatBrPhone(config.whatsapp))}</i>`);
+    const numSite = config.whatsapp.replace(/\D+/g, "");
+    linhas.push(
+      "",
+      `☎️ <i>Número no site: <a href="https://wa.me/${numSite}">${esc(formatBrPhone(config.whatsapp))}</a></i>`,
+    );
   }
 
   linhas.push(
     "",
     `<i>ID interno:</i> <code>${lead.id}</code>`,
-    lead.whatsapp
-      ? `🔗 wa.me/${lead.whatsapp.replace(/\D+/g, "")}`
-      : "🔗 sem número de WhatsApp registrado",
   );
 
   return linhas.join("\n");
@@ -273,29 +298,70 @@ export function mensagemAlerta(
 
   if (tipo === "whatsapp" || lead.etapa === "whatsapp") {
     titulo = "🟢 <b>Lead foi para o WhatsApp!</b>";
-    subtitulo = "<i>Um visitante clicou no botão e foi para o WhatsApp oficial de atendimento.</i>";
+    subtitulo = "<i>Visitante clicou no botão e abriu o WhatsApp de atendimento.</i>";
   } else if (tipo === "saida") {
-    titulo = "🚪 <b>Lead encerrou a sessão no site</b>";
-    subtitulo = "<i>O visitante saiu da landing page.</i>";
+    titulo = "🚪 <b>Lead saiu da landing page</b>";
+    subtitulo = "<i>O visitante encerrou a sessão sem clicar no WhatsApp.</i>";
   } else {
-    titulo = "👀 <b>Novo Lead na Landing Page</b>";
-    subtitulo = "<i>Um visitante acabou de acessar a sua landing page.</i>";
+    titulo = "👀 <b>Novo lead na landing page!</b>";
+    subtitulo = "<i>Um visitante acabou de acessar sua página.</i>";
   }
 
-  return [
+  const linhas: string[] = [
     titulo,
     "━━━━━━━━━━━━━━━━━━",
     subtitulo,
     "",
-    linha("📍 Origem/Local", localDoLead(lead)),
+  ];
+
+  // Info de identidade (se tiver)
+  if (lead.nome) linhas.push(linha("👤 Nome", lead.nome));
+  if (lead.whatsapp) {
+    const numLimpo = lead.whatsapp.replace(/\D+/g, "");
+    linhas.push(`📱 <b>WhatsApp:</b> <a href="https://wa.me/${numLimpo}">${esc(formatBrPhone(lead.whatsapp))}</a>`);
+  }
+
+  linhas.push(
+    linha("📍 Local", localDoLead(lead)),
     linha(
       "💻 Dispositivo",
       [lead.dispositivo, lead.sistema, lead.navegador].filter(Boolean).join(" · ") || undefined,
     ),
-    linha("🔗 Campanha/Referência", origem(lead)),
-    linha("🕒 Horário", formatarDataHora(lead.criadoEm)),
+    linha("🔗 Campanha", origem(lead)),
+    linha("🕒 Horário", formatarDataHora(lead.atualizadoEm ?? lead.criadoEm)),
+  );
+
+  if (lead.visitas > 1) {
+    linhas.push(linha("🔁 Visitas", String(lead.visitas)));
+  }
+
+  if (lead.qualidade && lead.qualidade !== "confiavel") {
+    linhas.push(linha("⚠️ Qualidade", rotuloQualidade(lead.qualidade)));
+  }
+
+  linhas.push(
     "",
     `<i>Sessão:</i> <code>#${lead.id.slice(0, 8)}</code>`,
+  );
+
+  return linhas.join("\n");
+}
+
+/** Notificação enviada a todos os admins quando o número oficial do site muda. */
+export function mensagemNumeroAtualizado(
+  novoNumero: string,
+  autor: string,
+): string {
+  const numLimpo = novoNumero.replace(/\D+/g, "");
+  return [
+    "☎️ <b>Número oficial do site atualizado!</b>",
+    "━━━━━━━━━━━━━━━━━━",
+    "",
+    `📱 <b>Novo número:</b> <a href="https://wa.me/${numLimpo}">${esc(formatBrPhone(novoNumero))}</a>`,
+    `👤 <b>Alterado por:</b> ${esc(autor)}`,
+    `🕒 <b>Horário:</b> ${formatarDataHora(new Date().toISOString())}`,
+    "",
+    "<i>Todos os visitantes da landing page agora serão redirecionados para este número.</i>",
   ].join("\n");
 }
 

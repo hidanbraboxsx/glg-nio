@@ -80,15 +80,17 @@ export function configEmCache(): DadosConfigSite {
   );
 }
 
-export async function buscarConfigSite(): Promise<DadosConfigSite> {
-  if (configCacheValido() && configCache) return configCache.valor;
+export async function buscarConfigSite(forcar = false): Promise<DadosConfigSite> {
+  if (!forcar && configCacheValido() && configCache) return configCache.valor;
   if (configEmVoo) return configEmVoo;
 
   configEmVoo = (async () => {
     try {
-      const resposta = await fetch("/api/config", {
+      const url = forcar ? `/api/config?_=${Date.now()}` : "/api/config";
+      const resposta = await fetch(url, {
         headers: { Accept: "application/json" },
         credentials: "same-origin",
+        cache: forcar ? "no-store" : "default",
       });
       if (!resposta.ok) return configEmCache();
       const dados = (await resposta.json()) as {
@@ -117,7 +119,7 @@ export async function buscarConfigSite(): Promise<DadosConfigSite> {
 }
 
 /**
- * Hook: devolve a configuração do site (WhatsApp, Título, Favicon).
+ * Hook: devolve a configuração do site (WhatsApp, Título, Favicon) com sincronização em tempo real.
  */
 export function useSiteConfig(inicial?: Partial<DadosConfigSite>): DadosConfigSite {
   const [config, setConfig] = useState<DadosConfigSite>(() => ({
@@ -127,6 +129,8 @@ export function useSiteConfig(inicial?: Partial<DadosConfigSite>): DadosConfigSi
   }));
 
   useEffect(() => {
+    let ativo = true;
+
     if (inicial?.whatsapp && inicial?.titulo && inicial?.favicon) {
       configCache = {
         valor: {
@@ -136,23 +140,60 @@ export function useSiteConfig(inicial?: Partial<DadosConfigSite>): DadosConfigSi
         },
         em: Date.now(),
       };
-      return;
     }
 
-    let ativo = true;
-    void buscarConfigSite().then((novo) => {
-      if (ativo) {
-        setConfig(novo);
-        if (typeof document !== "undefined") {
-          document.title = novo.titulo;
-          const link = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
-          if (link) link.href = novo.favicon;
+    const sincronizar = async (forcar = false) => {
+      try {
+        const novo = await buscarConfigSite(forcar);
+        if (ativo) {
+          setConfig((anterior) => {
+            if (
+              anterior.whatsapp === novo.whatsapp &&
+              anterior.titulo === novo.titulo &&
+              anterior.favicon === novo.favicon
+            ) {
+              return anterior;
+            }
+            if (typeof document !== "undefined") {
+              if (document.title !== novo.titulo) {
+                document.title = novo.titulo;
+              }
+              const link = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
+              if (link && link.href !== novo.favicon) {
+                link.href = novo.favicon;
+              }
+            }
+            return novo;
+          });
         }
+      } catch {
+        /* ignora falhas de rede em segundo plano */
       }
-    });
+    };
+
+    // Sincroniza quando a aba é reaberta/focada e a cada 20 segundos
+    const aoMudarVisibilidade = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+        void sincronizar(true);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("visibilitychange", aoMudarVisibilidade);
+      window.addEventListener("focus", aoMudarVisibilidade);
+    }
+
+    const intervalo = setInterval(() => {
+      void sincronizar(true);
+    }, 20_000);
 
     return () => {
       ativo = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("visibilitychange", aoMudarVisibilidade);
+        window.removeEventListener("focus", aoMudarVisibilidade);
+      }
+      clearInterval(intervalo);
     };
   }, [inicial?.whatsapp, inicial?.titulo, inicial?.favicon]);
 

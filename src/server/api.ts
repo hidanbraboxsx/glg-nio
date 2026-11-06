@@ -121,13 +121,23 @@ async function tratarLead(request: Request, ctx: ContextoExecucao): Promise<Resp
     await registrarAcesso(contexto);
   }
 
+  // Notificações inteligentes e precisas:
+  // - primeiroWhatsapp: quando o evento ATUAL for "clique_whatsapp" e for a primeira vez
+  // - primeiraSaida: quando o evento ATUAL for "saida" e for a primeira vez
+  // - primeiraEntrada: quando for criação ou primeira "entrada"
   const primeiroWhatsapp =
+    nomeEvento === "clique_whatsapp" &&
     lead.eventos.filter((evento) => evento.nome === "clique_whatsapp").length === 1;
+
   const primeiraSaida =
     nomeEvento === "saida" &&
     lead.eventos.filter((evento) => evento.nome === "saida").length === 1;
+
+  const primeiraEntrada =
+    criado || (nomeEvento === "entrada" && lead.eventos.filter((evento) => evento.nome === "entrada").length === 1);
+
   const deveAvisar =
-    (criado || primeiroWhatsapp || primeiraSaida) && deveNotificar(avaliacao.qualidade);
+    (primeiroWhatsapp || primeiraSaida || primeiraEntrada) && deveNotificar(avaliacao.qualidade);
 
   if (deveAvisar) {
     const tipo = primeiroWhatsapp ? "whatsapp" : primeiraSaida ? "saida" : "entrada";

@@ -33,6 +33,7 @@ import {
   mensagemLead,
   mensagemLista,
   mensagemMetricas,
+  mensagemNumeroAtualizado,
   mensagemPainel,
   mensagemPromptNota,
   mensagemPromptNumero,
@@ -220,6 +221,8 @@ async function executarAcaoAprovada(aprovacao: AprovacaoPendente, autor: string)
       case "mudar_numero_site": {
         const config = await definirWhatsappSite(payload["numero"]!, autor);
         mensagemResultado = `✅ <b>Aprovado e executado!</b>\n\nNúmero do site alterado para <b>${esc(config.whatsapp)}</b>.`;
+        // Notifica TODOS os admins sobre a mudança de número
+        await notificarTodosAdmins(mensagemNumeroAtualizado(config.whatsapp, autor), solicitanteChatId);
         break;
       }
       case "mudar_titulo_site": {
@@ -245,6 +248,8 @@ async function executarAcaoAprovada(aprovacao: AprovacaoPendente, autor: string)
       case "usar_numero_lead_no_site": {
         const config = await definirWhatsappSite(payload["numero"]!, autor);
         mensagemResultado = `✅ <b>Aprovado e executado!</b>\n\nNúmero <b>${esc(config.whatsapp)}</b> agora é o número oficial do site.`;
+        // Notifica TODOS os admins sobre a mudança de número
+        await notificarTodosAdmins(mensagemNumeroAtualizado(config.whatsapp, autor), solicitanteChatId);
         break;
       }
     }
@@ -255,6 +260,20 @@ async function executarAcaoAprovada(aprovacao: AprovacaoPendente, autor: string)
 
   // Notifica o admin que fez a solicitação
   await enviarMensagem(solicitanteChatId, mensagemResultado, await tecladoMenu());
+}
+
+/**
+ * Envia uma mensagem a todos os admins e super-admins,
+ * excluindo opcionalmente um chat-id específico (para não duplicar notificações).
+ */
+async function notificarTodosAdmins(texto: string, excluirChatId?: number): Promise<void> {
+  const { adminIds, superAdminIds } = getConfig().telegram;
+  const destinatarios = Array.from(new Set([...adminIds, ...superAdminIds])).filter(
+    (id) => id !== excluirChatId,
+  );
+  for (const chatId of destinatarios) {
+    await enviarMensagem(chatId, texto, await tecladoMenu());
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -397,8 +416,10 @@ async function aplicarResposta(
     if (isSA) {
       // Super-admin executa diretamente
       const config = await definirWhatsappSite(texto, autor);
+      // Notifica todos os outros admins sobre a mudança
+      await notificarTodosAdmins(mensagemNumeroAtualizado(config.whatsapp, autor), solicitanteChatId);
       return {
-        texto: `✅ <b>Número do site atualizado</b>\n\n☎️ <b>${esc(config.whatsapp)}</b>\n\nO site já mostra este número na próxima renderização.`,
+        texto: `✅ <b>Número do site atualizado!</b>\n\n☎️ <b>${esc(config.whatsapp)}</b>\n\n<i>O site já mostra este número e todos os admins foram notificados.</i>`,
         teclado: await tecladoIdentidadeSite(),
       };
     } else {
@@ -791,8 +812,9 @@ export async function notificarAdministrador(
   const destinatarios = Array.from(new Set([...adminIds, ...superAdminIds]));
   if (destinatarios.length === 0) return;
 
-  const teclado = await tecladoLead(lead);
   const texto = mensagemAlerta(lead, tipo);
+  const teclado = await tecladoLead(lead);
+
   for (const chatId of destinatarios) {
     await enviarMensagem(chatId, texto, teclado);
   }

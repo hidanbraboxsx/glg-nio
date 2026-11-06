@@ -125,12 +125,41 @@ export async function tecladoVoltar(): Promise<TecladoInline> {
 /** Ficha e ações da sessão do visitante. */
 export async function tecladoLead(lead: Lead): Promise<TecladoInline> {
   const id = lead.id;
-  return {
-    inline_keyboard: [
-      [await botao("🔄 Atualizar Sessão", "d", id)],
-      [await botao("👥 Ver Outros Acessos", "l", "0"), await botao("🏠 Menu Principal", "m", "home")],
+  const temNumero = Boolean(lead.whatsapp);
+  const numLimpo = lead.whatsapp?.replace(/\D+/g, "") ?? "";
+
+  const linhas: BotaoInline[][] = [
+    // Linha 1: Ações principais do lead
+    [
+      await botao("✏️ Editar Número", "e", id),
+      await botao("📝 Observação", "n", id),
     ],
-  };
+    // Linha 2: Ações de etapa
+    [
+      await botao("✅ Converter", "c", id),
+      await botao("⚫ Perder", "p", id),
+    ],
+  ];
+
+  // Linha 3: Ações que dependem de ter número
+  const linhaExtra: BotaoInline[] = [];
+  if (temNumero) {
+    linhaExtra.push({ text: "💬 Abrir WhatsApp", url: `https://wa.me/${numLimpo}` });
+    linhaExtra.push(await botao("🌐 Usar no Site", "o", id));
+  }
+  if (temNumero) {
+    linhaExtra.push(await botao("🔎 Verificar WA", "w", id));
+  }
+  if (linhaExtra.length > 0) linhas.push(linhaExtra);
+
+  // Linha 4: Navegação
+  linhas.push([
+    await botao("🔄 Atualizar", "d", id),
+    await botao("👥 Lista", "l", "0"),
+    await botao("🏠 Menu", "m", "home"),
+  ]);
+
+  return { inline_keyboard: linhas };
 }
 
 /**

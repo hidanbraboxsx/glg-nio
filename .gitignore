@@ -37,5 +37,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Capturas locais de verificação
+# Capturas locais de verificaï¿½ï¿½o
 .screenshots/
+.vercel
+.env*
